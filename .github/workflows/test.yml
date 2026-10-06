@@ -18,7 +18,7 @@ jobs:
       - name: 必要なライブラリのインストール
         run: pip install requests
 
-      - name: AI判定テスト実行
+      - name: X検索テスト実行
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-        run: python test_gemini.py
+          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
+        run: python test_x.py
