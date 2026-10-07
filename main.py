@@ -2,6 +2,7 @@ import os
 import requests
 import json
 import time
+import re
 
 # --- 設定値 ---
 X_BEARER_TOKEN = os.environ.get("X_BEARER_TOKEN")
@@ -10,8 +11,9 @@ LINE_CHANNEL_ACCESS_TOKEN = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
 LINE_USER_ID = os.environ.get("LINE_USER_ID")
 
 LAST_ID_FILE = "last_id.txt"
-MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-2.5-flash"]
-MAX_NOTIFY_COUNT = 20  # 1通にまとめる最大件数（安全上限）
+# 動作実績のある安定モデルを優先
+MODELS = ["gemini-3.5-flash-lite", "gemini-3.8-flash"]
+MAX_NOTIFY_COUNT = 20  # 1通にまとめる最大件数
 
 PROMPT_TEMPLATE = """
 以下のSNSの投稿本文を読み、投稿者が「品川近視クリニックの紹介・割引クーポン・紹介コードを求めている（探している・使いたい）」かどうかを判定してください。
@@ -20,7 +22,7 @@ PROMPT_TEMPLATE = """
 - 投稿者がクーポンや紹介を求めている、探している、欲しいと言っている場合は「YES」
 - 既に受けた感想、自分が紹介を配っている側、クリニックの宣伝、無関係な話題の場合は「NO」
 
-回答は必ず以下のJSON形式のみで出力してください（マークダウンや解説は一切不要）：
+回答は必ず以下のJSON形式のみで出力してください（マークダウンの```は不要です）：
 {{"is_target": true, "reason": "判定理由を日本語で簡潔に"}}
 または
 {{"is_target": false, "reason": "判定理由を日本語で簡潔に"}}
@@ -49,7 +51,7 @@ def search_tweets(since_id=None):
     query = "品川近視 -is:retweet lang:ja"
     params = {
         "query": query,
-        "max_results": 100,  # 上限100件まで一括取得
+        "max_results": 100,
         "tweet.fields": "created_at,text,author_id"
     }
     if since_id:
@@ -78,18 +80,28 @@ def judge_with_ai(post_text):
                     headers={"Content-Type": "application/json"},
                     params={"key": GEMINI_API_KEY},
                     json=payload,
-                    timeout=10
+                    timeout=15
                 )
                 if res.status_code == 200:
                     text_resp = res.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-                    cleaned = text_resp.replace("```json", "").replace("```", "").strip()
-                    parsed = json.loads(cleaned)
-                    return parsed.get("is_target", False), parsed.get("reason", "")
+                    # JSON部分を安全に抽出
+                    match = re.search(r'\{.*\}', text_resp, re.DOTALL)
+                    if match:
+                        parsed = json.loads(match.group(0))
+                        return parsed.get("is_target", False), parsed.get("reason", "")
+                    else:
+                        print(f"⚠️ JSON抽出失敗: {text_resp}")
                 elif res.status_code == 503:
+                    print(f"⚠️ {model_id} 混雑中(503)。リトライします...")
                     time.sleep(2)
-            except Exception:
-                pass
-    return False, "判定エラー"
+                else:
+                    print(f"⚠️ Geminiエラー ({model_id}, ステータス {res.status_code}): {res.text}")
+                    break
+            except Exception as e:
+                print(f"⚠️ 通信例外 ({model_id}): {e}")
+                time.sleep(1)
+
+    return False, "AI判定に失敗しました"
 
 def send_combined_line(targets):
     """複数件を1通にまとめてLINE通知する"""
