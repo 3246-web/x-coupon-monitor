@@ -1,7 +1,7 @@
-name: Test Runner
+name: Test LINE Notification
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # 手動実行ボタンを表示する設定
 
 jobs:
   run-test:
@@ -18,7 +18,8 @@ jobs:
       - name: 必要なライブラリのインストール
         run: pip install requests
 
-      - name: X検索テスト実行
+      - name: LINEテスト実行
         env:
-          X_BEARER_TOKEN: ${{ secrets.X_BEARER_TOKEN }}
-        run: python test_x.py
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+        run: python test_line.py
