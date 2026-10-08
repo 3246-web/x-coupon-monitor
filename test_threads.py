@@ -10,7 +10,7 @@ url = "https://api.apify.com/v2/acts/burbn~threads-search-scraper/run-sync-get-d
 
 payload = {
     "searchQueries": ["品川近視"],
-    "maxPosts": 5,          # テストなので最小限の5件
+    "maxPosts": 10,          # テストなので最小限の5件
     "searchSort": "recent"  # 最新順
 }
 
